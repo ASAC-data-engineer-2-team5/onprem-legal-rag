@@ -32,6 +32,7 @@ indexing:
 
 # 검색 (실험1·실험3)
 retrieval:
+  mode: hybrid              # sparse | dense | hybrid (실험1)
   top_k: 5                  # 최종 반환 개수
   candidate_k: 20           # RRF 결합 전 각 검색에서 가져올 후보 수
   rrf_k: 60                 # RRF 상수 (1/(rrf_k + rank))
