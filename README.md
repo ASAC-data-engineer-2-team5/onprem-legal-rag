@@ -71,6 +71,15 @@ ollama pull qwen2.5:7b-instruct    # config/default.yaml의 generation.model과 
 
 > 검색 채점(Hit Rate@k·MRR)만 할 경우 LLM 없이도 동작합니다.
 
+**RAGAS 설치 확인 필요.** `requirements.txt`에 포함돼 있으나 의존성이 무거워(`datasets`·`langchain`·`openai` 등 동반) 환경에 따라 `pip install -r requirements.txt`에서 누락될 수 있습니다. 설치 여부를 확인하고, 안 돼 있으면 별도로 설치하세요.
+
+```bash
+python -c "import ragas; print(ragas.__version__)"   # 미설치면 ModuleNotFoundError
+pip install "ragas>=0.2"                              # 누락 시 설치
+```
+
+> RAGAS는 `openai`·`langchain_openai`를 끌고 들어오며 기본 심판이 외부 API입니다. 온프레미스로 쓰려면 반드시 로컬 LLM·로컬 임베딩으로 배선해야 합니다(§8 참조).
+
 ---
 
 ## 4. 사용법
@@ -147,7 +156,7 @@ python tests/test_evaluation.py
 ### 파이프라인 완성
 - [ ] **가상 질문 인덱싱 색인 반영** — 코드는 있으나 현재 색인엔 0개. Ollama 구동 후 `build_index.py` 재실행하여 색인에 포함.
 - [ ] **리랭커 모델 지정** — `config`의 `retrieval.reranker.model`이 비어 있어 현재 재정렬 스킵. 한국어 cross-encoder 모델 선정 후 지정(실험3).
-- [ ] **RAGAS 정식 연동(선택)** — requirements엔 있으나 미설치. 기본값이 외부 API라 온프레미스용으로 로컬 LLM·로컬 임베딩 배선 필요. 현재는 로컬 LLM 심판 채점으로 대체.
+- [ ] **RAGAS 정식 연동** — 설치 완료(ragas 0.4.3). 다만 기본 심판·임베딩이 외부 API(OpenAI)라 온프레미스에선 그대로 못 씀. 로컬 LLM·로컬 임베딩으로 배선해야 사용 가능. 그 전까지 답변 품질은 로컬 LLM 심판 채점(`--judge`)으로 대체.
 
 ### 실험 (7단계)
 - [ ] **실험 1** 검색 방식 비교 (Sparse / Dense / Hybrid, RRF 비율 튜닝), 질문 유형별.
