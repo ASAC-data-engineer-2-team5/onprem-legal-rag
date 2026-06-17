@@ -41,6 +41,7 @@ def generate(config: dict[str, Any], prompt: str) -> str:
         "model": gen["model"],
         "prompt": prompt,
         "stream": False,
+        "think": False,  # 사고 과정(thinking) 출력 비활성화 — 재현성·속도. 미지원 모델은 무시
         "options": {
             "temperature": gen["temperature"],
             "num_predict": gen["max_tokens"],
@@ -50,7 +51,9 @@ def generate(config: dict[str, Any], prompt: str) -> str:
     req = urllib.request.Request(
         f"{endpoint}/api/generate", data=data, headers={"Content-Type": "application/json"}
     )
-    with urllib.request.urlopen(req, timeout=120) as resp:
+    # 첫 추론은 모델 로드로 느릴 수 있어 넉넉히. config로 조정 가능.
+    request_timeout = gen.get("request_timeout", 600)
+    with urllib.request.urlopen(req, timeout=request_timeout) as resp:
         result = json.loads(resp.read().decode("utf-8"))
     return result.get("response", "")
 

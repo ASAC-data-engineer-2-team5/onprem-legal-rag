@@ -56,3 +56,4 @@ generation:
   endpoint: http://localhost:11434
   temperature: 0.0
   max_tokens: 1024
+  request_timeout: 600      # 생성 요청 타임아웃(초). 첫 추론은 모델 로드로 느릴 수 있음
