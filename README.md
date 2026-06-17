@@ -1,0 +1,159 @@
+# 온프레미스 법조문 RAG 시스템
+
+법조문 형식(편-장-절-조-항-호)의 사내 규정집을 대상으로 하는 **온프레미스 RAG** 시스템입니다.
+외부 API 없이 로컬 임베딩·로컬 LLM만으로 동작하며, 모든 설계 변수는 실험으로 검증·확정하는 것을 목표로 합니다.
+
+- 상위 지침: [`CLAUDE.md`](CLAUDE.md)
+- 조사 배경: [`docs/RAG.md`](docs/RAG.md)
+- 설계 문서: [`docs/superpowers/specs/2026-06-17-onprem-legal-rag-design.md`](docs/superpowers/specs/2026-06-17-onprem-legal-rag-design.md)
+
+---
+
+## 1. 핵심 설계
+
+| 항목 | 선택 |
+| --- | --- |
+| 청킹 | 구조 기반(조 단위) + Parent-Child. **항(child)으로 검색, 조(parent) 전체를 LLM에 전달** |
+| 임베딩 | 한국어 로컬 모델 (`Snowflake/snowflake-arctic-embed-l-v2.0`, 최종은 실험으로 확정) |
+| 검색 | Hybrid (BM25 + 벡터), **RRF**로 결합 + (옵션) cross-encoder 리랭커 |
+| 메타데이터 | 편-장-절-조 경로를 청크마다 저장 → 범위 선제 축소 |
+| 생성 | 로컬 LLM (Ollama), 검색된 조 전체를 컨텍스트로 주입 |
+| 평가 | Hit Rate@k, MRR, (옵션) 로컬 LLM 답변 채점 |
+
+**제약**: 외부 임베딩/LLM API 전면 금지, GPU 자원 제한 고려, 약 100쪽 규정집(ANN 불필요).
+
+---
+
+## 2. 폴더 구조
+
+```
+llmagent-pjt/
+├── config/
+│   ├── default.yaml                # 모든 실험 변수의 기준값
+│   └── experiments/                # 실험별 오버라이드만 담음 (exp1~exp4)
+├── data/
+│   ├── raw/regulations.md          # 원본 규정집 (구조화 MD)
+│   ├── processed/chunks.jsonl      # 청킹 산출물 (gitignore)
+│   └── eval/qa_set.jsonl           # 질문-정답 평가셋 (유형 태그·정답 조 id)
+├── src/
+│   ├── config.py                   # YAML 2층 병합 로더 + 시드 고정
+│   ├── chunking.py                 # 편-장-절-조-항 파서, Parent-Child, 표 요약
+│   ├── indexing.py                 # 임베딩→Chroma, BM25 통계, 가상질문 인덱싱
+│   ├── retrieval.py                # BM25+벡터, RRF, 메타필터, 리랭커
+│   ├── generation.py               # 로컬 LLM(Ollama) 답변 생성
+│   └── evaluation.py               # Hit Rate@k, MRR, 답변 채점
+├── scripts/
+│   ├── build_index.py              # 청킹 + 인덱싱 1회 실행
+│   ├── run_query.py                # 질문 1개 → 검색 → 답변 (수동 확인용)
+│   └── run_experiment.py           # 평가셋 전체 실행 + 결과표 누적
+├── tests/                          # 단계별 단위 테스트
+├── results/                        # 실험 결과표 (gitignore되지 않음, 누적)
+├── vectorstore/                    # Chroma 영속화 (gitignore)
+└── requirements.txt
+```
+
+---
+
+## 3. 설치
+
+```bash
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+로컬 LLM(답변 생성·가상질문 인덱싱·답변 채점에 필요)은 [Ollama](https://ollama.com)를 사용합니다.
+
+```bash
+ollama serve                       # 백엔드 구동
+ollama pull qwen2.5:7b-instruct    # config/default.yaml의 generation.model과 일치시킬 것
+```
+
+> 검색 채점(Hit Rate@k·MRR)만 할 경우 LLM 없이도 동작합니다.
+
+---
+
+## 4. 사용법
+
+진행 순서는 **청킹 → 인덱싱 → 검색 → 평가** 입니다.
+
+### 4.1 인덱스 빌드 (청킹 + 인덱싱)
+
+```bash
+python scripts/build_index.py
+# 인덱스에 영향을 주는 변수(청킹 방식·임베딩 모델)를 바꾼 실험은 --config로 재빌드
+python scripts/build_index.py --config config/experiments/exp4_embedding.yaml
+```
+
+> 가상 질문 인덱싱을 색인에 포함하려면 **Ollama를 먼저 띄운 뒤** 빌드해야 합니다(미구동 시 자동 스킵).
+
+### 4.2 질문 1개 실행 (수동 확인)
+
+```bash
+python scripts/run_query.py "전결 금액 기준이 어떻게 되나요"
+python scripts/run_query.py "..." --no-generate         # 검색 결과만, LLM 생략
+```
+
+### 4.3 평가셋 전체 실행 (실험)
+
+```bash
+python scripts/run_experiment.py --label baseline                       # default 설정
+python scripts/run_experiment.py --config config/experiments/exp1_retrieval.yaml --label exp1-sparse
+python scripts/run_experiment.py --label baseline --judge               # 답변 품질까지 채점(LLM 필요)
+```
+
+결과는 `results/summary.md`·`summary.csv`에 누적되고, 질문별 상세는 `results/<label>_per_question.csv`에 저장됩니다.
+
+---
+
+## 5. 설정 (config)
+
+실험으로 정할 값은 코드에 하드코딩하지 않고 전부 `config/`에서 관리합니다.
+
+- `config/default.yaml` — 모든 변수의 기준값(baseline)
+- `config/experiments/*.yaml` — 이번 실험에서 **바뀌는 변수만** 오버라이드 (default 위에 깊은 병합)
+
+주요 실험 변수: 임베딩 모델, RRF sparse/dense 가중치, top-k, 리랭커 on/off·모델, 청킹 방식(조 단위 단일 vs Parent-Child), 가상질문 인덱싱 on/off.
+
+---
+
+## 6. 평가
+
+- **검색 채점**: 정답 조(jo) id 기준 Hit Rate@k, MRR. 전체 + 질문 유형별(일상어 / 조항용어) 집계.
+- **답변 채점**: 온프레미스 제약상 외부 API 금지 → 로컬 LLM을 심판으로 쓰는 경량 채점(`--judge`). 백엔드 없으면 자동 스킵.
+- **원칙**: 모든 실험은 동일 평가셋(`data/eval/qa_set.jsonl`)으로 비교.
+
+진행 예정 실험: ① 검색 방식 비교(Sparse/Dense/Hybrid·RRF 비율) ② 청킹 비교 ③ 리랭커 유무(정확도 vs 지연) ④ 임베딩 모델 비교.
+
+---
+
+## 7. 테스트
+
+```bash
+python tests/test_chunking.py
+python tests/test_retrieval.py
+python tests/test_evaluation.py
+# (인덱싱·생성 테스트는 모델/백엔드가 필요할 수 있음)
+```
+
+---
+
+## 8. 남은 작업 (TODO)
+
+### 데이터·환경 (선행 조건)
+- [ ] **전체 규정집 확정** — 현재 `data/raw/regulations.md`는 14개 조(제1편 제1~2장)만 포함된 샘플. 본문이 제56조 등 뒷부분을 참조하므로 전체본으로 교체 필요. 교체 시 조 번호 연속성 재확인.
+- [ ] **평가셋 확장·정제** — 현재 24문항(14개 조 기준). 전체 규정집 확정 후 약 50문항으로 확장하고 정답 근거 재검수.
+
+### 파이프라인 완성
+- [ ] **가상 질문 인덱싱 색인 반영** — 코드는 있으나 현재 색인엔 0개. Ollama 구동 후 `build_index.py` 재실행하여 색인에 포함.
+- [ ] **리랭커 모델 지정** — `config`의 `retrieval.reranker.model`이 비어 있어 현재 재정렬 스킵. 한국어 cross-encoder 모델 선정 후 지정(실험3).
+- [ ] **RAGAS 정식 연동(선택)** — requirements엔 있으나 미설치. 기본값이 외부 API라 온프레미스용으로 로컬 LLM·로컬 임베딩 배선 필요. 현재는 로컬 LLM 심판 채점으로 대체.
+
+### 실험 (7단계)
+- [ ] **실험 1** 검색 방식 비교 (Sparse / Dense / Hybrid, RRF 비율 튜닝), 질문 유형별.
+- [ ] **실험 2** 청킹 비교 (조 단위 단일 청크 / Parent-Child).
+- [ ] **실험 3** 리랭커 유무 비교 (정확도 향상분 vs 지연 증가 교환비).
+- [ ] **실험 4** 임베딩 모델 비교 (정확도 충분한 가장 작은 모델 탐색).
+
+### 후순위 (현 단계 미구현)
+- GraphRAG, Hierarchical Indexing(RAPTOR 등), ANN(HNSW) 최적화 — 소규모라 불필요/후순위.
