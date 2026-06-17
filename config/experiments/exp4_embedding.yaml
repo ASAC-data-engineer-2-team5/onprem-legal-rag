@@ -1,0 +1,16 @@
+# 실험4 — 임베딩 모델 비교 (한국어 후보 2~3개)
+# default.yaml 위에 "바뀌는 변수만" 덮어쓴다.
+#
+# 사용법: model 값을 후보로 바꿔가며 동일 질문셋으로 비교.
+# 목표: 검색 정확도가 충분히 나오는 "가장 작은" 모델 탐색 (로컬 자원 이득).
+# 함께 기록: 질문 임베딩 속도(병목 구간), Hit Rate, MRR.
+# 주의: 임베딩 모델이 바뀌면 인덱스를 다시 빌드해야 한다(질문·문서 벡터 공간 일치 필요).
+#
+# 후보 예시 (택1로 교체):
+#   - Snowflake/snowflake-arctic-embed-l-v2.0   (기본·대형)
+#   - BAAI/bge-m3                                (다국어·중형)
+#   - dragonkue/snowflake-arctic-embed-l-v2.0-ko (한국어 파인튜닝)
+
+embedding:
+  model: Snowflake/snowflake-arctic-embed-l-v2.0
+  batch_size: 32

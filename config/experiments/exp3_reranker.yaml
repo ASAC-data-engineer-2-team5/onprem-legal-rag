@@ -1,0 +1,12 @@
+# 실험3 — Re-ranker 유무 비교 (cross-encoder)
+# default.yaml 위에 "바뀌는 변수만" 덮어쓴다.
+#
+# 사용법: enabled 를 false ↔ true 로 바꿔가며 동일 질문셋으로 비교.
+# 측정: MRR 향상분과 질문당 추가 지연(초)을 함께 기록 → 교환비
+#       (예: MRR +0.15 / 지연 +0.3초).
+
+retrieval:
+  reranker:
+    enabled: true
+    model: ""          # 한국어 cross-encoder 모델 (실험으로 확정)
+    top_k: 5

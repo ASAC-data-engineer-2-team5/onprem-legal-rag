@@ -1,0 +1,10 @@
+# 실험2 — 청킹 비교 (조 단위 단일 청크 / Parent-Child)
+# default.yaml 위에 "바뀌는 변수만" 덮어쓴다.
+#
+# 사용법: mode 값을 single / parent_child 로 바꿔가며 동일 질문셋으로 비교.
+# 비교 지표: Hit Rate, MRR, 최종 답변 품질.
+# 주의: 청킹이 바뀌면 인덱스를 다시 빌드해야 한다(build_index 재실행).
+
+chunking:
+  # 후보: single (조 단위 단일 청크) | parent_child (항 단위 검색 + 조 전체 전달)
+  mode: parent_child

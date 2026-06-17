@@ -1,0 +1,57 @@
+# 공통 기본값 (모든 실험 변수의 기준값)
+# 실험별 오버라이드는 config/experiments/*.yaml 에서 이 값만 덮어쓴다.
+# 주의: 실험으로 정할 값을 코드에 하드코딩하지 말 것 — 전부 여기서 관리.
+
+# 재현성: 랜덤 시드 고정
+seed: 42
+
+# 경로
+paths:
+  raw_dir: data/raw                       # 원본 규정집 (구조화 MD/텍스트)
+  chunks_path: data/processed/chunks.jsonl  # 청킹 산출물
+  vectorstore_dir: vectorstore            # Chroma 영속화 위치
+  bm25_path: vectorstore/bm25.pkl         # BM25 코퍼스 통계 영속화
+  eval_path: data/eval/qa_set.jsonl       # 질문-정답 평가셋
+  results_dir: results                    # 실험 결과표 누적
+
+# 청킹 (실험2)
+chunking:
+  mode: parent_child        # parent_child | single  (조 단위 단일 청크 vs Parent-Child)
+  table_summary: true       # 표 위에 요약 텍스트를 붙여 함께 인덱싱
+
+# 임베딩 (실험4)
+embedding:
+  model: Snowflake/snowflake-arctic-embed-l-v2.0
+  batch_size: 32            # GPU 메모리 고려해 조정
+  normalize: true
+
+# 인덱싱
+indexing:
+  hypothetical_questions: true   # 가상 질문 인덱싱 on/off (일상어 질문 대응)
+  collection_name: regulations
+
+# 검색 (실험1·실험3)
+retrieval:
+  top_k: 5                  # 최종 반환 개수
+  candidate_k: 20           # RRF 결합 전 각 검색에서 가져올 후보 수
+  rrf_k: 60                 # RRF 상수 (1/(rrf_k + rank))
+  weights:                  # RRF sparse/dense 가중치 비율 (실험1)
+    sparse: 1.0
+    dense: 1.0
+  metadata_filter: false    # 메타데이터(편-장-절-조) 범위 선제 축소
+  reranker:
+    enabled: true           # cross-encoder 리랭커 on/off (실험3)
+    model: ""               # 한국어 cross-encoder 모델 (실험으로 확정)
+    top_k: 5
+
+# ANN (소규모라 기본 off — 완전 탐색)
+ann:
+  enabled: false
+
+# 생성 (로컬 LLM)
+generation:
+  backend: ollama           # 모델을 띄우는 서빙 소프트웨어 (온프레미스·구동 단순)
+  model: qwen2.5:7b-instruct  # backend가 실제로 띄우는 LLM (자원 넉넉하면 qwen2.5:14b-instruct)
+  endpoint: http://localhost:11434
+  temperature: 0.0
+  max_tokens: 1024

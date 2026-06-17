@@ -1,0 +1,18 @@
+# 실험1 — 검색 방식 비교 (Sparse 단독 / Dense 단독 / Hybrid + RRF 비율 튜닝)
+# default.yaml 위에 "바뀌는 변수만" 덮어쓴다. 여기 없는 값은 default 그대로 유지.
+#
+# 사용법: 아래 블록 중 하나만 활성화하거나, 값을 바꿔가며 동일 질문셋으로 비교.
+# 비교 지표: Hit Rate, MRR (질문 유형별: 일상어 / 조항·용어).
+
+retrieval:
+  # mode 후보: sparse | dense | hybrid
+  mode: hybrid
+
+  # Hybrid일 때 RRF sparse/dense 가중치 비율 — 최적값 탐색 대상
+  weights:
+    sparse: 1.0
+    dense: 1.0
+
+  # 검색 방식 비교에서는 리랭커 영향을 배제하기 위해 끄고 측정(실험3과 분리)
+  reranker:
+    enabled: false
