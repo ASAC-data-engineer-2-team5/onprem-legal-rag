@@ -155,7 +155,7 @@ python scripts/serve_chat.py --config config/experiments/remote_colab.yaml
 - **답변 채점**: 온프레미스 제약상 외부 API 금지 → 로컬 LLM을 심판으로 쓰는 경량 채점(`--judge`). 백엔드 없으면 자동 스킵.
 - **원칙**: 모든 실험은 동일 평가셋(`data/eval/qa_set.jsonl`)으로 비교.
 
-진행 예정 실험: ① 검색 방식 비교(Sparse/Dense/Hybrid·RRF 비율) ② 청킹 비교 ③ 리랭커 유무(정확도 vs 지연) ④ 임베딩 모델 비교.
+진행 예정 실험: ① 검색 방식 비교(Sparse/Dense/Hybrid) ② RRF 가중치 최적화(sparse/dense 비율별 Hit Rate·MRR 비교) ③ 청킹 비교 ④ 리랭커 유무(정확도 vs 지연) ⑤ 임베딩 모델 비교.
 
 ---
 
@@ -177,15 +177,16 @@ python tests/test_evaluation.py
 - [x] **평가셋 확장·정제** — 24문항(14개 조)에서 76문항(편2~5의 26개 절을 절당 2문항씩 커버)으로 확장. 100개 조 중 66개 조를 정답 근거로 직접 다룸.
 
 ### 파이프라인 완성
-- [ ] **인덱스 최초 빌드** — `data/processed/`, `vectorstore/`가 아직 비어 있어 한 번도 빌드되지 않음. `build_index.py` 실행 + 100조 전체에서 청킹 파서가 정상 동작하는지 확인 필요.
-- [ ] **리랭커 모델 지정** — `config`의 `retrieval.reranker.model`이 비어 있어 현재 재정렬 스킵. 한국어 cross-encoder 모델 선정 후 지정(실험3).
+- [x] **인덱스 최초 빌드** — `build_index.py`로 100조 전체 청킹(조 100·항 600) + Qdrant·BM25 색인 완료. 재빌드 후 재평가해도 수치가 동일해 재현성 확인됨.
+- [ ] **리랭커 모델 지정** — `config`의 `retrieval.reranker.model`이 비어 있어 현재 재정렬 스킵. 한국어 cross-encoder 모델 선정 후 지정(실험4).
 - [ ] **RAGAS 정식 연동** — 설치 완료(ragas 0.4.3). 다만 기본 심판·임베딩이 외부 API(OpenAI)라 온프레미스에선 그대로 못 씀. 로컬 LLM·로컬 임베딩으로 배선해야 사용 가능. 그 전까지 답변 품질은 로컬 LLM 심판 채점(`--judge`)으로 대체.
 
-### 실험 (7단계)
-- [ ] **실험 1** 검색 방식 비교 (Sparse / Dense / Hybrid, RRF 비율 튜닝), 질문 유형별.
-- [ ] **실험 2** 청킹 비교 (조 단위 단일 청크 / Parent-Child).
-- [ ] **실험 3** 리랭커 유무 비교 (정확도 향상분 vs 지연 증가 교환비).
-- [ ] **실험 4** 임베딩 모델 비교 (정확도 충분한 가장 작은 모델 탐색).
+### 실험
+- [x] **실험 1** 검색 방식 비교 (Sparse / Dense / Hybrid 1:1), 질문 유형별. → Dense(MRR 0.9035)가 Sparse(0.859)보다 강했고, Hybrid 1:1은 Hit@5(0.9737)가 가장 높음. `results/summary.md` 참고.
+- [x] **실험 2** RRF 가중치 최적화 (sparse:dense = 1:1 / 1:2 / 1:3 비교). → 1:1(MRR 0.9029) > 1:3(0.9013) > 1:2(0.9002) 순. dense 가중치를 높여도 Dense 단독(0.9035)을 못 넘음 — 이 평가셋·코퍼스에서는 Hybrid의 이득이 Hit@5 쪽(꼬리 케이스 회수)에 있고, 더 극단적인 비율(1:5 이상)이나 sparse를 낮추는 방향은 아직 안 해봄.
+- [ ] **실험 3** 청킹 비교 (조 단위 단일 청크 / Parent-Child).
+- [ ] **실험 4** 리랭커 유무 비교 (정확도 향상분 vs 지연 증가 교환비).
+- [ ] **실험 5** 임베딩 모델 비교 (정확도 충분한 가장 작은 모델 탐색).
 
 ### 후순위 (현 단계 미구현)
 - GraphRAG, Hierarchical Indexing(RAPTOR 등), ANN(HNSW) 최적화 — 소규모라 불필요/후순위.
